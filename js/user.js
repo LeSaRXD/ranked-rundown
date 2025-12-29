@@ -1,20 +1,7 @@
 import { fetch_api } from "./api.js";
-var PoseType;
-(function (PoseType) {
-    PoseType["DEFAULT"] = "default";
-    PoseType["MARCHING"] = "marching";
-    PoseType["WALKING"] = "walking";
-    PoseType["CROUCHING"] = "crouching";
-    PoseType["CROSSED_ARMS"] = "crossed";
-    PoseType["CROSSED_LEGS"] = "criss_cross";
-    PoseType["ULTIMATE"] = "ultimate";
-    PoseType["ISOMETRIC"] = "isometric";
-})(PoseType || (PoseType = {}));
-function lunar_api_builder(uuid) {
-    return (pose_type) => {
-        return `https://starlightskins.lunareclipse.studio/render/${pose_type}/${uuid}/full`;
-    };
-}
+import { lunar_api_builder, PoseType } from "./lunar.js";
+import { construct_api_url, try_api } from "./util.js";
+const SEASON_START = 6, SEASON_END = SEASON_START + 3;
 document.addEventListener("DOMContentLoaded", async () => {
     const params = new URLSearchParams(window.location.search);
     const username = params.get("username");
@@ -22,20 +9,60 @@ document.addEventListener("DOMContentLoaded", async () => {
         window.location.assign("./index.html");
         return;
     }
-    const user_res = await fetch_api(`users/${username}`);
-    switch (user_res.status) {
-        case "error":
-        case "fetch_error":
-        case "json_error":
-            console.error(user_res.data);
-            alert("Error fetching API. Please check the console for more info");
-            return;
-        case "no_user":
-            alert("Could not find user. Please check whether you entered the username correctly");
-            window.location.assign("./index.html");
-            return;
-    }
-    const user = user_res.data;
-    const player_skin_api = lunar_api_builder(user.uuid);
+    const player_skin_api = lunar_api_builder(username);
     document.querySelector(".card_img").src = player_skin_api(PoseType.CROSSED_LEGS);
+    const promises = [];
+    for (let season = SEASON_START; season <= SEASON_END; season++) {
+        promises.push(load_user_data(username, season));
+    }
+    const user_seasons = await try_api(Promise.all(promises));
+    if (user_seasons === null)
+        return;
+    console.log(user_seasons);
+    const user = user_seasons[0];
+    const data = await load_all_data(user);
+    console.log(data);
 });
+async function load_user_data(username, season) {
+    const url = construct_api_url(`/users/${username}`, { season });
+    return fetch_api(url);
+}
+async function load_all_data(user) {
+    const promises = [];
+    for (let season = SEASON_START; season <= SEASON_END; season++) {
+        promises.push(load_user_matches(user, season));
+    }
+    const all_matches = [];
+    const res_matches = await try_api(Promise.all(promises));
+    if (res_matches === null)
+        return null;
+    for (const matches of res_matches)
+        all_matches.push(...matches);
+    return Promise.resolve({
+        user,
+        matches: all_matches,
+    });
+}
+async function load_user_matches(user, season) {
+    const matches = [];
+    let before = null;
+    while (true) {
+        const COUNT = 100;
+        const url = construct_api_url(`/users/${user.uuid}/matches`, {
+            count: COUNT,
+            before,
+            season,
+            excludedecay: true,
+            type: 2,
+        });
+        console.log(url);
+        const new_matches = await fetch_api(url);
+        if (new_matches === null)
+            break;
+        matches.push(...new_matches);
+        if (new_matches.length < COUNT)
+            break;
+        before = Math.min(...new_matches.map((match) => match.id));
+    }
+    return Promise.resolve(matches);
+}
