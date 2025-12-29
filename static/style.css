@@ -32,6 +32,10 @@ h1 {
 	color: var(--fg2);
 }
 
+p {
+	text-align: center;
+}
+
 main {
 	margin: auto;
 	padding: 3rem 1rem;

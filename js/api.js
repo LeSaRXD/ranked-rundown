@@ -5,10 +5,9 @@ export const fetch_api = async (url) => {
         fetch(url).then((ok) => {
             ok.json()
                 .then((json) => {
-                var _a;
                 const api_res = json;
                 if (api_res.status === "error")
-                    if (((_a = api_res.data) === null || _a === void 0 ? void 0 : _a.error) === NO_USER)
+                    if (api_res.data?.error === NO_USER)
                         reject({ status: "no_user" });
                     else
                         reject(api_res);

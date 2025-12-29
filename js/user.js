@@ -11,40 +11,59 @@ document.addEventListener("DOMContentLoaded", async () => {
     }
     const player_skin_api = lunar_api_builder(username);
     document.querySelector(".card_img").src = player_skin_api(PoseType.CROSSED_LEGS);
-    const promises = [];
+    const promises = new Array();
     for (let season = SEASON_START; season <= SEASON_END; season++) {
         promises.push(load_user_data(username, season));
     }
     const user_seasons = await try_api(Promise.all(promises));
     if (user_seasons === null)
         return;
-    console.log(user_seasons);
-    const user = user_seasons[0];
-    const data = await load_all_data(user);
+    const users = Object.fromEntries(user_seasons);
+    let total_matches = 0;
+    for (const user of Object.values(users)) {
+        total_matches += user.statistics.season.playedMatches.ranked;
+    }
+    const data = await load_all_data(users, total_matches);
     console.log(data);
 });
 async function load_user_data(username, season) {
     const url = construct_api_url(`/users/${username}`, { season });
-    return fetch_api(url);
+    const user = await fetch_api(url);
+    return [season, user];
 }
-async function load_all_data(user) {
-    const promises = [];
+async function load_all_data(users, total_matches) {
+    const user = users[SEASON_END];
+    if (user === undefined)
+        return Promise.resolve(null);
+    const promises = new Array();
+    const progress = {
+        paragraph: document.getElementById("loading_counter"),
+        loaded: 0,
+        total: total_matches,
+        load(added, total = null) {
+            this.loaded += added;
+            if (total !== null)
+                this.total = total;
+            this.paragraph.innerText = `${this.loaded} / ${this.total}`;
+        }
+    };
     for (let season = SEASON_START; season <= SEASON_END; season++) {
-        promises.push(load_user_matches(user, season));
+        promises.push(load_user_matches(user, season, progress));
     }
-    const all_matches = [];
+    const all_matches = new Array();
     const res_matches = await try_api(Promise.all(promises));
     if (res_matches === null)
         return null;
     for (const matches of res_matches)
         all_matches.push(...matches);
+    progress.load(0, progress.loaded);
     return Promise.resolve({
-        user,
+        users,
         matches: all_matches,
     });
 }
-async function load_user_matches(user, season) {
-    const matches = [];
+async function load_user_matches(user, season, progress) {
+    const matches = new Array();
     let before = null;
     while (true) {
         const COUNT = 100;
@@ -55,11 +74,9 @@ async function load_user_matches(user, season) {
             excludedecay: true,
             type: 2,
         });
-        console.log(url);
         const new_matches = await fetch_api(url);
-        if (new_matches === null)
-            break;
         matches.push(...new_matches);
+        progress.load(new_matches.length);
         if (new_matches.length < COUNT)
             break;
         before = Math.min(...new_matches.map((match) => match.id));

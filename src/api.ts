@@ -18,10 +18,20 @@ export type ApiError = {
 	data: any,
 };
 
+interface RankedCasual<T = number> {
+	ranked: T,
+	casual: T,
+}
+
 export interface Player {
 	uuid: string,
 	nickname: string,
 	eloRate: number | null,
+	statistics: {
+		season: {
+			playedMatches: RankedCasual,
+		}
+	},
 }
 export interface Match {
 	id: number,
