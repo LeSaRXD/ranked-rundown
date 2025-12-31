@@ -4,7 +4,7 @@ import { construct_api_url, try_api } from "./util.js";
 
 const SEASON_START = 6, SEASON_END = SEASON_START + 3;
 
-document.addEventListener("DOMContentLoaded", async () => {
+window.addEventListener("load", async () => {
 	const params = new URLSearchParams(window.location.search);
 	const username = params.get("username");
 	if (username === null || username.trim() === "") {
@@ -13,7 +13,7 @@ document.addEventListener("DOMContentLoaded", async () => {
 	}
 
 	const player_skin_api = lunar_api_builder(username);
-	(document.querySelector(".card_img") as HTMLImageElement).src = player_skin_api(PoseType.CROSSED_LEGS);
+	(document.querySelector(".card>img") as HTMLImageElement).src = player_skin_api(PoseType.CROSSED_LEGS);
 
 	const promises = new Array();
 	for (let season = SEASON_START; season <= SEASON_END; season++) {
@@ -22,14 +22,17 @@ document.addEventListener("DOMContentLoaded", async () => {
 
 	const user_seasons = await try_api(Promise.all(promises));
 	if (user_seasons === null) return;
-	const users = Object.fromEntries(user_seasons);
+	const users: { [key: number]: Player } = Object.fromEntries(user_seasons);
 	let total_matches = 0;
 	for (const user of Object.values(users)) {
 		total_matches += user.statistics.season.playedMatches.ranked;
 	}
 
 	const data = await load_all_data(users, total_matches);
-	console.log(data);
+	if (data === null)
+		return;
+
+	render_data(player_skin_api, data);
 });
 
 async function load_user_data(username: string, season: number): Promise<[number, Player]> {
@@ -107,4 +110,32 @@ async function load_user_matches(user: Player, season: number, progress: Loading
 		before = Math.min(...new_matches.map((match) => match.id));
 	}
 	return Promise.resolve(matches);
+}
+
+function create_card(heading: string, img_src: string, ...text: string[]): HTMLDivElement {
+	const card = document.createElement("div");
+	card.classList.add("card", "right");
+
+	const header = document.createElement("h1");
+	header.innerHTML = heading;
+	const image = document.createElement("img");
+	image.src = img_src;
+	const span = document.createElement("span");
+	span.innerHTML = text.join("<br>");
+
+	card.replaceChildren(header, image, span);
+	return card;
+}
+
+function render_data(player_skin_api: (pose: PoseType) => string, data: UserData) {
+	const main = document.querySelector("main") as HTMLElement;
+	const cards = [
+		create_card("Let's go!", player_skin_api(PoseType.ULTIMATE), "This is you"),
+		create_card("Your elo", player_skin_api(PoseType.CROSSED_ARMS), `${data.users[SEASON_END]!!.eloRate} ELO`),
+		create_card("Matches played", player_skin_api(PoseType.WALKING), `${data.matches.length} matches`),
+	];
+	for (const [idx, card] of cards.entries()) {
+		card.style.zIndex = (idx + 2).toString();
+		main.appendChild(card);
+	}
 }
