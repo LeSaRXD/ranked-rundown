@@ -8,7 +8,6 @@ export enum PoseType {
 	ULTIMATE = "ultimate",
 	ISOMETRIC = "isometric",
 	HEAD = "head",
-	CUSTOM = "custom",
 	CHEERING = "cheering",
 	RELAXING = "relaxing",
 	TRUDGING = "trudging",

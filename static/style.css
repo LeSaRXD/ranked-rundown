@@ -32,10 +32,6 @@ h1 {
 	color: var(--fg2);
 }
 
-p {
-	text-align: center;
-}
-
 main {
 	display: grid;
 	place-items: center;
@@ -45,30 +41,37 @@ main {
 	overflow: hidden;
 }
 
+img {
+	border: none;
+	outline: none;
+}
+
 .card {
 	grid-row: 1;
 	grid-column: 1;
 
-	width: 24rem;
+	width: min(24rem, 100%);
 	aspect-ratio: 3/5;
 
 	margin: auto;
-	padding: 3rem 1rem;
+	padding: 2rem 1rem;
 	box-sizing: border-box;
 
 	background-color: var(--bg);
 
 	display: flex;
 	flex-direction: column;
-	align-items: center;
+	align-items: stretch;
 	justify-content: space-between;
 	gap: 1rem;
 
+	outline: 2px solid var(--bg3);
 	border-radius: 1rem;
 
 	transition-timing-function: ease-out;
-	transition-duration: 0.4s;
-	transition-property: transform opacity;
+	transition-duration: 0.3s;
+	transition-property: transform, opacity;
+	text-align: center;
 }
 
 .card.right {
@@ -78,6 +81,11 @@ main {
 	pointer-events: none;
 }
 
+button {
+	border: none;
+	cursor: pointer;
+}
+
 form {
 	display: flex;
 	flex-direction: column;
@@ -85,31 +93,63 @@ form {
 	align-items: stretch;
 }
 
-input,
-button {
+form input,
+form button {
 	background-color: var(--bg);
 	color: var(--fg2);
 	font-size: 13pt;
 
 	border-radius: 0.5rem;
-	border: none;
 
 	outline: 1px solid var(--fg);
 	padding: 0.5rem;
 }
 
-input:hover,
-button:hover {
+form input:hover,
+form button:hover {
 	background-color: var(--bg3);
 	color: var(--fg3);
-}
-
-button {
-	cursor: pointer;
 }
 
 .card>img {
 	flex: 1 1 0;
 	min-width: 0;
 	min-height: 0;
+	max-width: 100%;
+	max-height: 100%;
+	object-fit: contain;
+	padding: 1rem;
+}
+
+.card>p {
+	font-size: 15pt;
+	line-height: 1.5;
+}
+
+.nav_button {
+	z-index: 999;
+	top: 0;
+	width: 4rem;
+	height: 100%;
+
+	background: none;
+	position: absolute;
+
+	transition-duration: 0.3s;
+	transition-property: opacity;
+	transition-timing-function: ease;
+}
+
+.nav_button img {
+	width: 100%;
+	aspect-ratio: 1;
+}
+
+#scroll_left {
+	left: 0;
+}
+
+#scroll_right {
+	right: 0;
+	transform: scaleX(-1);
 }

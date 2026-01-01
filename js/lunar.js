@@ -9,7 +9,6 @@ export var PoseType;
     PoseType["ULTIMATE"] = "ultimate";
     PoseType["ISOMETRIC"] = "isometric";
     PoseType["HEAD"] = "head";
-    PoseType["CUSTOM"] = "custom";
     PoseType["CHEERING"] = "cheering";
     PoseType["RELAXING"] = "relaxing";
     PoseType["TRUDGING"] = "trudging";

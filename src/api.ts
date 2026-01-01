@@ -38,13 +38,14 @@ export interface Match {
 	forfeited: boolean,
 	players: Player[],
 	result: {
-		uuid: string,
+		uuid: string | null,
 		time: number,
 	},
 	changes: {
 		uuid: string,
 		change: number,
-	}[]
+	}[],
+	date: number,
 };
 export interface Leaderboard {
 	season: {
