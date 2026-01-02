@@ -1,4 +1,5 @@
-import { fetch_api } from "./api.js";
+import { fetch_mojang_api, fetch_ranked_api } from "./api.js";
+import { load_user_data, save_user_data } from "./local_storage.js";
 import { lunar_api_builder, PoseType } from "./lunar.js";
 import { construct_api_url, try_api } from "./util.js";
 const SEASON_START = 6, SEASON_END = SEASON_START + 3;
@@ -11,35 +12,48 @@ window.addEventListener("load", async () => {
         window.location.assign("./index.html");
         return;
     }
-    const promises = new Array();
-    for (let season = SEASON_START; season <= SEASON_END; season++) {
-        promises.push(load_user_data(username, season));
-    }
-    const user_seasons = await try_api(Promise.all(promises));
-    if (user_seasons === null)
+    const uuid = await try_api(fetch_mojang_api(username));
+    if (uuid === null)
         return;
-    const users = Object.fromEntries(user_seasons);
-    let total_matches = 0;
-    for (const user of Object.values(users)) {
-        total_matches += user.statistics.season.playedMatches.ranked;
-    }
-    const player_skin_api = lunar_api_builder(users[SEASON_END].uuid);
+    const player_skin_api = lunar_api_builder(uuid);
     document.querySelector(".card>img").src = player_skin_api(PoseType.CROSSED_LEGS);
-    const data = await load_all_data(users, total_matches);
-    if (data === null)
-        return;
-    render_data(player_skin_api, data);
+    let display_data = load_user_data(uuid);
+    if (display_data === null) {
+        const promises = new Array();
+        for (let season = SEASON_START; season <= SEASON_END; season++) {
+            promises.push(request_user_data(uuid, season));
+        }
+        const user_seasons = await try_api(Promise.all(promises));
+        if (user_seasons === null)
+            return;
+        const users = Object.fromEntries(user_seasons);
+        let total_matches = 0;
+        for (const user of Object.values(users)) {
+            total_matches += user.statistics.season.playedMatches.ranked;
+        }
+        if (total_matches < 5) {
+            alert("At least 5 ranked matches required :<");
+            window.location.assign("./index.html");
+            return;
+        }
+        const raw_data = await request_user_matches(users, total_matches);
+        if (raw_data === null)
+            return;
+        display_data = create_display_data(raw_data);
+        save_user_data(uuid, display_data);
+    }
+    render_data(player_skin_api, display_data);
     setTimeout(() => {
         move_right();
         update_scroll_buttons();
-    }, 1000);
+    }, 500);
 });
-async function load_user_data(username, season) {
-    const url = construct_api_url(`/users/${username}`, { season });
-    const user = await fetch_api(url);
+async function request_user_data(uuid, season) {
+    const url = construct_api_url(`/users/${uuid}`, { season });
+    const user = await fetch_ranked_api(url);
     return [season, user];
 }
-async function load_all_data(users, total_matches) {
+async function request_user_matches(users, total_matches) {
     const user = users[SEASON_END];
     if (user === undefined)
         return Promise.resolve(null);
@@ -82,7 +96,7 @@ async function load_user_matches(user, season, progress) {
             excludedecay: true,
             type: 2,
         });
-        const new_matches = await fetch_api(url);
+        const new_matches = await fetch_ranked_api(url);
         matches.push(...new_matches);
         progress.load(new_matches.length);
         if (new_matches.length < COUNT)
@@ -105,17 +119,16 @@ function create_card(heading, img_src, ...text) {
     return card;
 }
 function render_data(player_skin_api, data) {
-    const display_data = create_display_data(data);
-    const { playtime, total_forfeits, total_losses, total_elo_lost, total_elo_gained, highest_win_streak, highest_loss_streak, greatest_rival } = display_data;
+    const { playtime, total_matches, total_forfeits, total_losses, total_elo_lost, total_elo_gained, highest_win_streak, highest_loss_streak, greatest_rival } = data;
     const playtime_hours = Math.floor(playtime / 1000 / 60 / 60);
     const playtime_minutes = Math.floor((playtime / 1000 / 60) % 60);
     const playtime_string = playtime_hours > 0 ? `${playtime_hours} hours and ${playtime_minutes} minutes` : `${playtime_minutes} minutes`;
-    console.log(display_data);
+    console.debug(data);
     const main = document.querySelector("main");
     const cards = [];
-    cards.push(create_card("Playtime", player_skin_api(PoseType.DUNGEONS), "You have played Ranked for", `<b>${playtime_string}</b>`, `(${data.matches.length} matches)`, "in the big '25"));
+    cards.push(create_card("Playtime", player_skin_api(PoseType.DUNGEONS), "You have played Ranked for", `<b>${playtime_string}</b>`, `(${total_matches} matches)`, "in the big '25"));
     const ff_rate = total_forfeits / total_losses;
-    const ff_message = ["You have forfeited", `<b>${total_forfeits} games</b>`, "last year"];
+    const ff_message = ["You have forfeited", `<b>${total_forfeits} games</b> (${Math.round(total_forfeits / total_losses * 100)}%)`, "last year"];
     if (ff_rate < 0.1) {
         cards.push(create_card("<b>W</b> Mental", player_skin_api(PoseType.LUNGING), ...ff_message));
     }
@@ -154,6 +167,14 @@ function create_display_data(data) {
     let current_win_streak = 0, highest_win_streak = 0;
     let current_loss_streak = 0, highest_loss_streak = 0;
     const opponent_records = {};
+    const biggest_elo_gain = {
+        elo_change: -Infinity,
+        username: "",
+    };
+    const biggest_elo_loss = {
+        elo_change: -Infinity,
+        username: "",
+    };
     for (const match of data.matches) {
         playtime += match.result.time;
         const match_outcome = match.result.uuid === player_uuid ? MatchOutcome.Won
@@ -200,13 +221,23 @@ function create_display_data(data) {
         switch (match_outcome) {
             case MatchOutcome.Won:
                 opponent_record.wins += 1;
-                if (!match.forfeited)
-                    opponent_record.best_time_against = Math.min(opponent_record.best_time_against ?? Infinity, match.result.time);
+                if (match.forfeited)
+                    break;
+                opponent_record.best_time_against = Math.min(opponent_record.best_time_against ?? Infinity, match.result.time);
+                if (biggest_elo_gain.elo_change < elo_change) {
+                    biggest_elo_gain.elo_change = elo_change;
+                    biggest_elo_gain.username = opponent.nickname;
+                }
                 break;
             case MatchOutcome.Lost:
                 opponent_record.losses += 1;
-                if (!match.forfeited)
-                    opponent_record.best_time_rival = Math.min(opponent_record.best_time_rival ?? Infinity, match.result.time);
+                if (match.forfeited)
+                    break;
+                opponent_record.best_time_rival = Math.min(opponent_record.best_time_rival ?? Infinity, match.result.time);
+                if (biggest_elo_loss.elo_change < -elo_change) {
+                    biggest_elo_loss.elo_change = -elo_change;
+                    biggest_elo_loss.username = opponent.nickname;
+                }
                 break;
             case MatchOutcome.Drew:
                 opponent_record.draws += 1;
@@ -223,6 +254,7 @@ function create_display_data(data) {
     });
     return {
         playtime,
+        total_matches: data.matches.length,
         total_elo_gained,
         total_elo_lost,
         total_forfeits,
@@ -230,6 +262,8 @@ function create_display_data(data) {
         highest_win_streak,
         highest_loss_streak,
         greatest_rival,
+        biggest_elo_gain,
+        biggest_elo_loss,
     };
 }
 function compare_vs_records(first, second) {
