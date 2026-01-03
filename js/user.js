@@ -1,4 +1,5 @@
 import { fetch_mojang_api, fetch_ranked_api } from "./api.js";
+import { add_summary_effect } from "./card.js";
 import { load_user_data, save_user_data } from "./local_storage.js";
 import { lunar_api_builder, PoseType } from "./lunar.js";
 import { construct_api_url, try_api } from "./util.js";
@@ -118,8 +119,61 @@ function create_card(heading, img_src, ...text) {
     card.replaceChildren(header, image, paragraph);
     return card;
 }
+function create_summary(heading, img_src, max_elo, ...text) {
+    const card = document.createElement("div");
+    card.classList.add("card", "right");
+    card.id = "summary";
+    const elo = document.createElement("div");
+    elo.id = "elo_icon";
+    const elo_img = document.createElement("img");
+    let elo_category, elo_color = null;
+    if (max_elo < 600) {
+        elo_category = "coal";
+    }
+    else if (max_elo < 900) {
+        elo_category = "iron";
+        elo_color = "#ffffff";
+    }
+    else if (max_elo < 1200) {
+        elo_category = "gold";
+        elo_color = "#fdf55f";
+    }
+    else if (max_elo < 1500) {
+        elo_category = "emerald";
+        elo_color = "#17dd62";
+    }
+    else if (max_elo < 2000) {
+        elo_category = "diamond";
+        elo_color = "#4aedd9";
+    }
+    else {
+        elo_category = "netherite";
+        elo_color = "#662fcc";
+    }
+    elo_img.src = `./static/${elo_category}.png`;
+    const elo_text = document.createElement("b");
+    elo_text.innerText = max_elo.toString();
+    elo.replaceChildren(elo_img, elo_text);
+    if (elo_color !== null) {
+        elo_color += "90";
+        elo_img.style.filter = `drop-shadow(0 0 0.5rem ${elo_color})`;
+    }
+    const header = document.createElement("h1");
+    header.innerHTML = heading;
+    const image = document.createElement("img");
+    image.src = img_src;
+    const paragraph = document.createElement("p");
+    paragraph.innerHTML = text.join("<br>");
+    const overlay = document.createElement("div");
+    overlay.id = "summary_overlay";
+    card.replaceChildren(elo, header, image, paragraph, overlay);
+    const wrapper = document.createElement("div");
+    wrapper.id = "summary_wrapper";
+    wrapper.appendChild(card);
+    return wrapper;
+}
 function render_data(player_skin_api, data) {
-    const { playtime, total_matches, total_forfeits, total_losses, total_elo_lost, total_elo_gained, highest_win_streak, highest_loss_streak, greatest_rival } = data;
+    const { username, playtime, total_matches, total_wins, total_losses, total_forfeits, total_elo_lost, total_elo_gained, highest_elo, highest_win_streak, highest_loss_streak, greatest_rival, average_completion } = data;
     const playtime_hours = Math.floor(playtime / 1000 / 60 / 60);
     const playtime_minutes = Math.floor((playtime / 1000 / 60) % 60);
     const playtime_string = playtime_hours > 0 ? `${playtime_hours} hours and ${playtime_minutes} minutes` : `${playtime_minutes} minutes`;
@@ -128,11 +182,12 @@ function render_data(player_skin_api, data) {
     const cards = [];
     cards.push(create_card("Playtime", player_skin_api(PoseType.DUNGEONS), "You have played Ranked for", `<b>${playtime_string}</b>`, `(${total_matches} matches)`, "in the big '25"));
     const ff_rate = total_forfeits / total_losses;
-    const ff_message = ["You have forfeited", `<b>${total_forfeits} games</b> (${Math.round(total_forfeits / total_losses * 100)}%)`, "last year"];
-    if (ff_rate < 0.1) {
+    const ff_percent = Math.round(ff_rate * 100);
+    const ff_message = ["You have forfeited", `<b>${total_forfeits} games</b> (${ff_percent}%)`, "last year"];
+    if (ff_rate < 0.15) {
         cards.push(create_card("<b>W</b> Mental", player_skin_api(PoseType.LUNGING), ...ff_message));
     }
-    else if (ff_rate < 0.25) {
+    else if (ff_rate < 0.4) {
         cards.push(create_card("Average Forfeiter", player_skin_api(PoseType.RELAXING), ...ff_message));
     }
     else {
@@ -144,14 +199,23 @@ function render_data(player_skin_api, data) {
         cards.push(create_card(win_streak_heading, player_skin_api(PoseType.KICKING), "Your highest win streak of 2025 is", `<b>${highest_win_streak} games</b> in a row`));
     }
     cards.push(create_card("Highest loss streak", player_skin_api(PoseType.FACEPALM), "You have lost", `<b>${highest_loss_streak} games</b> in a row`, "in 2025"));
-    cards.push(create_card("The Elos are Skyrocketing", player_skin_api(PoseType.CHEERING), "You have gained a total of", `<b>${total_elo_gained} ELO</b>`, "and lost", `<b>${total_elo_lost} ELO</b>`, "last year"));
+    if (total_elo_gained > total_elo_lost) {
+        cards.push(create_card("The Elos are Skyrocketing", player_skin_api(PoseType.CHEERING), "You have gained a total of", `<b>${total_elo_gained} ELO</b>`, "and lost", `<b>${total_elo_lost} ELO</b>`, "last year"));
+    }
+    else {
+        cards.push(create_card("The Elos are Plummeting", player_skin_api(PoseType.TRUDGING), "You have gained a total of", `<b>${total_elo_gained} ELO</b>`, "and lost", `<b>${total_elo_lost} ELO</b>`, "last year"));
+    }
     if (greatest_rival.losses > 1)
         cards.push(create_card("Your Greatest Rival", player_skin_api(PoseType.COWERING), "You have lost", `<b>${greatest_rival.losses} games</b>`, `against <i>${greatest_rival.username}</i>`));
+    const win_percent = Math.floor(total_wins / total_matches * 100);
+    const average_str = `${Math.floor(average_completion / 1000 / 60)}:${(Math.floor(average_completion / 1000) % 60).toString().padStart(2, "0")}`;
+    cards.push(create_summary(username, player_skin_api(PoseType.MOJANG_AVATAR), highest_elo, `Win rate: ${win_percent}%`, `FF rate: ${ff_percent}%`, `Average: ${average_str}`));
     for (const [idx, card] of cards.entries()) {
         card.style.zIndex = (idx + 2).toString();
         main.appendChild(card);
     }
     total_cards = cards.length + 1;
+    add_summary_effect();
 }
 var MatchOutcome;
 (function (MatchOutcome) {
@@ -160,12 +224,13 @@ var MatchOutcome;
     MatchOutcome["Drew"] = "drew";
 })(MatchOutcome || (MatchOutcome = {}));
 function create_display_data(data) {
-    const player_uuid = data.users[SEASON_END].uuid;
+    const player = data.users[SEASON_END];
     let playtime = 0;
     let total_elo_gained = 0, total_elo_lost = 0;
-    let total_forfeits = 0, total_losses = 0;
+    let total_forfeits = 0, total_wins = 0, total_losses = 0;
     let current_win_streak = 0, highest_win_streak = 0;
     let current_loss_streak = 0, highest_loss_streak = 0;
+    let total_completion_time = 0, total_completions = 0;
     const opponent_records = {};
     const biggest_elo_gain = {
         elo_change: -Infinity,
@@ -177,7 +242,7 @@ function create_display_data(data) {
     };
     for (const match of data.matches) {
         playtime += match.result.time;
-        const match_outcome = match.result.uuid === player_uuid ? MatchOutcome.Won
+        const match_outcome = match.result.uuid === player.uuid ? MatchOutcome.Won
             : (match.result.uuid === null) ?
                 MatchOutcome.Drew
                 : MatchOutcome.Lost;
@@ -186,6 +251,11 @@ function create_display_data(data) {
                 current_win_streak += 1;
                 current_loss_streak = 0;
                 highest_win_streak = Math.max(highest_win_streak, current_win_streak);
+                total_wins += 1;
+                if (!match.forfeited) {
+                    total_completions += 1;
+                    total_completion_time += match.result.time;
+                }
                 break;
             case MatchOutcome.Lost:
                 current_loss_streak += 1;
@@ -199,12 +269,12 @@ function create_display_data(data) {
                 current_loss_streak = 0;
                 break;
         }
-        const elo_change = match.changes.find((change) => change.uuid === player_uuid)?.change ?? 0;
+        const elo_change = match.changes.find((change) => change.uuid === player.uuid)?.change ?? 0;
         if (elo_change > 0)
             total_elo_gained += elo_change;
         else
             total_elo_lost -= elo_change;
-        const opponent = match.players.find((user) => user.uuid !== player_uuid);
+        const opponent = match.players.find((user) => user.uuid !== player.uuid);
         if (opponent === undefined)
             continue;
         if (!(opponent.uuid in opponent_records)) {
@@ -252,18 +322,23 @@ function create_display_data(data) {
         best_time_against: Infinity,
         best_time_rival: Infinity,
     });
+    const highest_elo = Object.values(data.users).map((user) => user.seasonResult.highest).reduce((prev, curr) => Math.max(prev, curr), 0);
     return {
+        username: player.nickname,
         playtime,
         total_matches: data.matches.length,
         total_elo_gained,
         total_elo_lost,
-        total_forfeits,
+        total_wins,
         total_losses,
+        total_forfeits,
         highest_win_streak,
         highest_loss_streak,
         greatest_rival,
+        highest_elo,
         biggest_elo_gain,
         biggest_elo_loss,
+        average_completion: (total_completions > 0) ? Math.floor(total_completion_time / total_completions) : 0,
     };
 }
 function compare_vs_records(first, second) {

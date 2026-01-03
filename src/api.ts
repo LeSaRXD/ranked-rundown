@@ -32,6 +32,9 @@ export interface Player {
 			playedMatches: RankedCasual,
 		}
 	},
+	seasonResult: {
+		highest: number,
+	}
 }
 export interface Match {
 	id: number,
