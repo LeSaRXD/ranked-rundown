@@ -267,7 +267,7 @@ function render_data(player_skin_api: (pose: PoseType) => string, data: DisplayD
 	}
 
 	const win_percent = Math.floor(total_wins / total_matches * 100);
-	const average_str = `${Math.floor(average_completion / 1000 / 60)}:${(Math.floor(average_completion / 1000) % 60).toString().padStart(2, "0")}`;
+	const average_str = average_completion > 0 ? `${Math.floor(average_completion / 1000 / 60)}:${(Math.floor(average_completion / 1000) % 60).toString().padStart(2, "0")}` : "--:--";
 	cards.push(create_summary(username,
 		player_skin_api(PoseType.MOJANG_AVATAR),
 		highest_elo,
