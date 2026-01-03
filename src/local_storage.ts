@@ -1,7 +1,7 @@
 import { DisplayData } from "./user.js";
 
 const VERSION_KEY = "version";
-const STORAGE_VERSION = "1";
+const STORAGE_VERSION = "2";
 
 function check_version() {
 	const prev_version = localStorage.getItem(VERSION_KEY);

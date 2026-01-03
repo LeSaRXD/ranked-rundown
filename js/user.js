@@ -173,7 +173,7 @@ function create_summary(heading, img_src, max_elo, ...text) {
     return wrapper;
 }
 function render_data(player_skin_api, data) {
-    const { username, playtime, total_matches, total_wins, total_losses, total_forfeits, total_elo_lost, total_elo_gained, highest_elo, highest_win_streak, highest_loss_streak, greatest_rival, average_completion } = data;
+    const { username, playtime, total_matches, total_wins, total_losses, total_forfeits, total_elo_lost, total_elo_gained, highest_elo, highest_win_streak, highest_loss_streak, greatest_rival, average_completion, biggest_elo_gain, biggest_elo_loss } = data;
     const playtime_hours = Math.floor(playtime / 1000 / 60 / 60);
     const playtime_minutes = Math.floor((playtime / 1000 / 60) % 60);
     const playtime_string = playtime_hours > 0 ? `${playtime_hours} hours and ${playtime_minutes} minutes` : `${playtime_minutes} minutes`;
@@ -207,6 +207,14 @@ function render_data(player_skin_api, data) {
     }
     if (greatest_rival.losses > 1)
         cards.push(create_card("Your Greatest Rival", player_skin_api(PoseType.COWERING), "You have lost", `<b>${greatest_rival.losses} games</b>`, `against <i>${greatest_rival.username}</i>`));
+    if (biggest_elo_gain.elo_change >= 24) {
+        const opp_skin = lunar_api_builder(biggest_elo_gain.uuid)(PoseType.DEAD);
+        cards.push(create_card("Elo thief", opp_skin, "You have stolen", `<b>${biggest_elo_gain.elo_change} ELO</b> from <i>${biggest_elo_gain.username}</i>`, "in a single game"));
+    }
+    if (biggest_elo_loss.elo_change >= 24) {
+        const opp_skin = lunar_api_builder(biggest_elo_loss.uuid)(PoseType.ARCHER);
+        cards.push(create_card("Robbed", opp_skin, "You have lost", `<b>${biggest_elo_loss.elo_change} ELO</b> to <i>${biggest_elo_loss.username}</i>`, "in one match"));
+    }
     const win_percent = Math.floor(total_wins / total_matches * 100);
     const average_str = `${Math.floor(average_completion / 1000 / 60)}:${(Math.floor(average_completion / 1000) % 60).toString().padStart(2, "0")}`;
     cards.push(create_summary(username, player_skin_api(PoseType.MOJANG_AVATAR), highest_elo, `Win rate: ${win_percent}%`, `FF rate: ${ff_percent}%`, `Average: ${average_str}`));
@@ -235,10 +243,12 @@ function create_display_data(data) {
     const biggest_elo_gain = {
         elo_change: -Infinity,
         username: "",
+        uuid: "",
     };
     const biggest_elo_loss = {
         elo_change: -Infinity,
         username: "",
+        uuid: "",
     };
     for (const match of data.matches) {
         playtime += match.result.time;
@@ -297,6 +307,7 @@ function create_display_data(data) {
                 if (biggest_elo_gain.elo_change < elo_change) {
                     biggest_elo_gain.elo_change = elo_change;
                     biggest_elo_gain.username = opponent.nickname;
+                    biggest_elo_gain.uuid = opponent.uuid;
                 }
                 break;
             case MatchOutcome.Lost:
@@ -307,6 +318,7 @@ function create_display_data(data) {
                 if (biggest_elo_loss.elo_change < -elo_change) {
                     biggest_elo_loss.elo_change = -elo_change;
                     biggest_elo_loss.username = opponent.nickname;
+                    biggest_elo_loss.uuid = opponent.uuid;
                 }
                 break;
             case MatchOutcome.Drew:
