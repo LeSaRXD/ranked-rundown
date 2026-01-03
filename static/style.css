@@ -43,11 +43,6 @@ main {
 	overflow: hidden;
 }
 
-img {
-	border: none;
-	outline: none;
-}
-
 .card {
 	margin: auto;
 	padding: 2rem 1rem;
@@ -127,6 +122,10 @@ form button:hover {
 	max-height: 100%;
 	object-fit: contain;
 	padding: 1rem;
+}
+
+#logo {
+	flex: unset;
 }
 
 .card>p {
