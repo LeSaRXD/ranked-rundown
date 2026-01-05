@@ -4,7 +4,7 @@ import { load_user_data, save_user_data } from "./local_storage.js";
 import { lunar_api_builder, PoseType } from "./lunar.js";
 import { construct_api_url, try_api } from "./util.js";
 
-const SEASON_START = 6, SEASON_END = SEASON_START + 3;
+const SEASON_START = 7, SEASON_END = SEASON_START + 2;
 
 let total_cards = 0;
 let current_card = 0;
